@@ -1,0 +1,5 @@
+nightfall-api
+scanner.log
+*.log
+.git
+.env

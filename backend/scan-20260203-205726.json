@@ -1,0 +1,263 @@
+{
+  "Target": "http://localhost:8000",
+  "Mode": "passive",
+  "StartedAt": "2026-02-03T20:57:26.119420887+05:30",
+  "CompletedAt": "2026-02-03T20:57:57.278346874+05:30",
+  "RequestCount": 138,
+  "Headers": [
+    {
+      "severity": "High",
+      "category": "Headers",
+      "confidence": "High",
+      "finding": "Missing security header: Content-Security-Policy",
+      "remediation": "Implement CSP: default-src 'self'; script-src 'self'",
+      "evidence": "Header not present",
+      "http_method": "GET",
+      "outcome": "Missing"
+    },
+    {
+      "severity": "Medium",
+      "category": "Headers",
+      "confidence": "High",
+      "finding": "Missing security header: Strict-Transport-Security",
+      "remediation": "Enable HSTS: max-age=31536000; includeSubDomains; preload",
+      "evidence": "Header not present",
+      "http_method": "GET",
+      "outcome": "Missing"
+    },
+    {
+      "severity": "Low",
+      "category": "Headers",
+      "confidence": "High",
+      "finding": "Missing security header: X-Content-Type-Options",
+      "remediation": "Set X-Content-Type-Options: nosniff",
+      "evidence": "Header not present",
+      "http_method": "GET",
+      "outcome": "Missing"
+    },
+    {
+      "severity": "Medium",
+      "category": "Headers",
+      "confidence": "High",
+      "finding": "Missing security header: X-Frame-Options",
+      "remediation": "Set X-Frame-Options: DENY or SAMEORIGIN",
+      "evidence": "Header not present",
+      "http_method": "GET",
+      "outcome": "Missing"
+    },
+    {
+      "severity": "Low",
+      "category": "Headers",
+      "confidence": "High",
+      "finding": "Missing security header: Referrer-Policy",
+      "remediation": "Set Referrer-Policy: strict-origin-when-cross-origin",
+      "evidence": "Header not present",
+      "http_method": "GET",
+      "outcome": "Missing"
+    },
+    {
+      "severity": "Low",
+      "category": "Headers",
+      "confidence": "High",
+      "finding": "Missing security header: Permissions-Policy",
+      "remediation": "Define Permissions-Policy with least privilege",
+      "evidence": "Header not present",
+      "http_method": "GET",
+      "outcome": "Missing"
+    },
+    {
+      "severity": "Info",
+      "category": "Headers",
+      "confidence": "High",
+      "finding": "Server header discloses software: SimpleHTTP/0.6 Python/3.10.12",
+      "remediation": "Remove or obfuscate Server header to prevent version disclosure",
+      "evidence": "SimpleHTTP/0.6 Python/3.10.12",
+      "http_method": "GET",
+      "outcome": "Disclosed"
+    }
+  ],
+  "TLS": [
+    {
+      "severity": "High",
+      "category": "TLS",
+      "confidence": "High",
+      "finding": "Target is not using HTTPS",
+      "remediation": "Enable HTTPS with valid TLS certificate and enforce HSTS",
+      "evidence": "Scheme is HTTP",
+      "http_method": "N/A",
+      "outcome": "HTTP"
+    }
+  ],
+  "Cookies": [
+    {
+      "severity": "Info",
+      "category": "Cookies",
+      "confidence": "High",
+      "finding": "No cookies set by server",
+      "remediation": "If authentication is used, ensure secure cookie flags are set",
+      "evidence": "No Set-Cookie headers",
+      "http_method": "GET",
+      "outcome": "None"
+    }
+  ],
+  "CORS": [
+    {
+      "severity": "Info",
+      "category": "CORS",
+      "confidence": "High",
+      "finding": "No CORS headers detected",
+      "remediation": "If API is public, configure CORS with explicit allowed origins",
+      "evidence": "No Access-Control-Allow-Origin header",
+      "http_method": "GET",
+      "outcome": "None"
+    }
+  ],
+  "Clickjacking": [
+    {
+      "severity": "Medium",
+      "category": "Clickjacking",
+      "confidence": "Medium",
+      "finding": "Clickjacking protection not detected (no X-Frame-Options and no CSP frame-ancestors)",
+      "remediation": "Add X-Frame-Options: DENY or CSP frame-ancestors 'none'",
+      "evidence": "XFO missing; CSP frame-ancestors missing",
+      "http_method": "GET",
+      "outcome": "Not Protected"
+    }
+  ],
+  "Exposures": null,
+  "HTTPMethods": null,
+  "WAF": [
+    {
+      "severity": "Info",
+      "category": "WAF",
+      "confidence": "Low",
+      "finding": "No obvious WAF/CDN fingerprint detected (best-effort)",
+      "remediation": "If WAF exists, ensure security headers are not stripped and logs are centralized",
+      "evidence": "No signatures found",
+      "http_method": "GET",
+      "outcome": "Unknown"
+    }
+  ],
+  "GraphQL": null,
+  "WebSockets": [
+    {
+      "severity": "Info",
+      "category": "WebSocket",
+      "confidence": "High",
+      "finding": "No WebSocket references detected in initial HTML (best-effort)",
+      "remediation": "If used dynamically, ensure WSS + auth + origin checks + monitoring",
+      "evidence": "No refs found",
+      "http_method": "GET",
+      "outcome": "None"
+    }
+  ],
+  "BrokenLinks": null,
+  "RobotsTxt": [
+    {
+      "severity": "Info",
+      "category": "robots.txt",
+      "confidence": "High",
+      "finding": "robots.txt not found",
+      "remediation": "Consider adding robots.txt to guide search engine crawlers",
+      "evidence": "status=404",
+      "http_method": "GET",
+      "outcome": "Not Found"
+    }
+  ],
+  "SourceMaps": [
+    {
+      "severity": "Info",
+      "category": "Source Maps",
+      "confidence": "High",
+      "finding": "No source map files detected",
+      "remediation": "Continue blocking source maps in production",
+      "evidence": "No .map files found",
+      "http_method": "GET",
+      "outcome": "Protected"
+    }
+  ],
+  "HTMLComments": [
+    {
+      "severity": "Info",
+      "category": "HTML Comments",
+      "confidence": "High",
+      "finding": "No HTML comments found",
+      "remediation": "Continue removing comments in production builds",
+      "evidence": "No comments detected",
+      "http_method": "GET",
+      "outcome": "Clean"
+    }
+  ],
+  "Backups": [
+    {
+      "severity": "Info",
+      "category": "Backup Files",
+      "confidence": "High",
+      "finding": "No backup files detected",
+      "remediation": "Continue blocking backup file access",
+      "evidence": "No backup files found",
+      "http_method": "GET",
+      "outcome": "Protected"
+    }
+  ],
+  "DirectoryListing": [
+    {
+      "severity": "Info",
+      "category": "Directory Listing",
+      "confidence": "High",
+      "finding": "No open directory listings detected",
+      "remediation": "Continue blocking directory indexing",
+      "evidence": "All directories protected",
+      "http_method": "GET",
+      "outcome": "Protected"
+    }
+  ],
+  "AdminPanels": [
+    {
+      "severity": "Info",
+      "category": "Admin Panels",
+      "confidence": "Medium",
+      "finding": "No admin panels detected on common paths",
+      "remediation": "Continue using non-standard admin paths",
+      "evidence": "No panels found",
+      "http_method": "GET",
+      "outcome": "Protected"
+    }
+  ],
+  "APIDocs": [
+    {
+      "severity": "Info",
+      "category": "API Docs",
+      "confidence": "High",
+      "finding": "No API documentation exposed on common paths",
+      "remediation": "Continue restricting API docs to internal networks",
+      "evidence": "No docs found",
+      "http_method": "GET",
+      "outcome": "Protected"
+    }
+  ],
+  "EmailAddresses": [
+    {
+      "severity": "Info",
+      "category": "Email Addresses",
+      "confidence": "High",
+      "finding": "No email addresses found in HTML",
+      "remediation": "Continue using obfuscation or contact forms",
+      "evidence": "No emails detected",
+      "http_method": "GET",
+      "outcome": "Protected"
+    }
+  ],
+  "Fingerprinting": [
+    {
+      "severity": "Info",
+      "category": "Technology Stack",
+      "confidence": "High",
+      "finding": "Technology stack detected (1 components)",
+      "remediation": "Review exposed technology versions; remove version disclosure headers; keep all software updated",
+      "evidence": "Server: SimpleHTTP/0.6 Python/3.10.12",
+      "http_method": "GET",
+      "outcome": "Detected"
+    }
+  ]
+}

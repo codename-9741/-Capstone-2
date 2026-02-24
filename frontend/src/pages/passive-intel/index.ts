@@ -1,0 +1,1 @@
+export { PassiveIntelPage } from './PassiveIntelPage';

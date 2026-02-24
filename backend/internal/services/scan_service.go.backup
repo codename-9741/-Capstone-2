@@ -1,0 +1,171 @@
+package services
+
+import (
+	"nightfall-tsukuyomi/internal/active"
+	"nightfall-tsukuyomi/internal/models"
+	"time"
+	"gorm.io/gorm"
+)
+
+type ScanService struct {
+	db *gorm.DB
+}
+
+func NewScanService(db *gorm.DB) *ScanService {
+	return &ScanService{db: db}
+}
+
+func (s *ScanService) CreateScan(targetID uint, mode string) (*models.Scan, error) {
+	// Get target
+	var target models.Target
+	if err := s.db.First(&target, targetID).Error; err != nil {
+		return nil, err
+	}
+
+	// Create scan record
+	now := time.Now()
+	scan := &models.Scan{
+		TargetID:  targetID,
+		Status:    "running",
+		StartedAt: &now,
+		Config: models.ScanConfig{
+			Mode: mode,
+		},
+	}
+
+	if err := s.db.Create(scan).Error; err != nil {
+		return nil, err
+	}
+
+	// Run scan in background
+	go s.executeScan(scan, &target)
+
+	return scan, nil
+}
+
+func (s *ScanService) executeScan(scan *models.Scan, target *models.Target) {
+	// Select config based on mode
+	var config *active.ScanConfig
+	switch scan.Config.Mode {
+	case "safe":
+		config = active.SafeConfig()
+	case "aggressive":
+		config = active.AggressiveConfig()
+	default:
+		config = active.DefaultConfig()
+	}
+
+	// Create scanner
+	scanner := active.NewScanner("https://"+target.Domain, config)
+
+	// Execute scan
+	result, err := scanner.Scan()
+	if err != nil {
+		scan.Status = "failed"
+		s.db.Save(scan)
+		return
+	}
+
+	// Calculate risk score
+	riskScore := s.calculateRiskScore(result.Findings)
+	riskGrade := s.getRiskGrade(riskScore)
+
+	// Update scan
+	scan.Status = "completed"
+	scan.CompletedAt = &result.EndTime
+	scan.RiskScore = riskScore
+	scan.RiskGrade = riskGrade
+	s.db.Save(scan)
+
+	// Store findings
+	for _, finding := range result.Findings {
+		f := &models.Finding{
+			ScanID:      scan.ID,
+			Severity:    finding.Severity,
+			Category:    finding.Category,
+			Confidence:  finding.Confidence,
+			Finding:     finding.Finding,
+			Remediation: finding.Remediation,
+			Evidence:    finding.Evidence,
+			HTTPMethod:  finding.HTTPMethod,
+			Outcome:     finding.Outcome,
+		}
+		s.db.Create(f)
+	}
+}
+
+func (s *ScanService) calculateRiskScore(findings []active.Finding) int {
+	score := 0
+	weights := map[string]int{
+		"Critical": 25,
+		"High":     15,
+		"Medium":   8,
+		"Low":      3,
+		"Info":     1,
+	}
+
+	for _, f := range findings {
+		score += weights[f.Severity]
+	}
+
+	if score > 100 {
+		score = 100
+	}
+
+	return score
+}
+
+func (s *ScanService) getRiskGrade(score int) string {
+	if score >= 70 {
+		return "HIGH"
+	} else if score >= 30 {
+		return "MEDIUM"
+	}
+	return "LOW"
+}
+
+func (s *ScanService) GetScan(scanID uint) (*models.Scan, error) {
+	var scan models.Scan
+	if err := s.db.First(&scan, scanID).Error; err != nil {
+		return nil, err
+	}
+	return &scan, nil
+}
+
+func (s *ScanService) GetScanWithFindings(scanID uint) (*models.Scan, error) {
+	var scan models.Scan
+	if err := s.db.Preload("Findings").First(&scan, scanID).Error; err != nil {
+		return nil, err
+	}
+	return &scan, nil
+}
+
+func (s *ScanService) ListScans() ([]models.Scan, error) {
+	var scans []models.Scan
+	if err := s.db.Order("id DESC").Find(&scans).Error; err != nil {
+		return nil, err
+	}
+	return scans, nil
+}
+
+func (s *ScanService) CreateTarget(domain string) (*models.Target, error) {
+	// Check if target exists
+	var target models.Target
+	result := s.db.Where("domain = ?", domain).First(&target)
+	
+	if result.Error == nil {
+		// Target exists, return it
+		return &target, nil
+	}
+
+	// Create new target
+	target = models.Target{
+		Domain: domain,
+	}
+
+	if err := s.db.Create(&target).Error; err != nil {
+		return nil, err
+	}
+
+	return &target, nil
+}

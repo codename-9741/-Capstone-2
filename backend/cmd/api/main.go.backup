@@ -1,0 +1,87 @@
+package main
+
+import (
+    "log"
+    "github.com/gin-gonic/gin"
+    "github.com/gin-contrib/cors"
+    "nightfall/internal/database"
+    "nightfall/internal/services"
+    "nightfall/internal/api/handlers"
+    "nightfall/internal/api/middleware"
+)
+
+const JWT_SECRET = "your-secret-key-change-in-production"
+
+func main() {
+    // Connect to database
+    dbConfig := database.GetDefaultConfig()
+    db, err := database.NewConnection(dbConfig)
+    if err != nil {
+        log.Fatal("Failed to connect to database:", err)
+    }
+    
+    // Initialize services
+    authService := services.NewAuthService(db, JWT_SECRET)
+    
+    // Initialize handlers
+    authHandler := handlers.NewAuthHandler(authService)
+    
+    // Create Gin router
+    r := gin.Default()
+    
+    // CORS middleware
+    r.Use(cors.New(cors.Config{
+        AllowOrigins:     []string{"http://localhost:3000", "http://localhost:5173"},
+        AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+        AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+        AllowCredentials: true,
+    }))
+    
+    // Public routes
+    r.GET("/health", func(c *gin.Context) {
+        c.JSON(200, gin.H{
+            "status":   "healthy",
+            "database": "connected",
+            "version":  "1.0.0",
+        })
+    })
+    
+    // API v1 routes
+    v1 := r.Group("/api/v1")
+    {
+        // Auth routes (public)
+        auth := v1.Group("/auth")
+        {
+            auth.POST("/register", authHandler.Register)
+            auth.POST("/login", authHandler.Login)
+            auth.POST("/refresh", authHandler.RefreshToken)
+        }
+        
+        // Protected routes
+        protected := v1.Group("")
+        protected.Use(middleware.AuthMiddleware([]byte(JWT_SECRET)))
+        {
+            protected.GET("/auth/me", authHandler.GetMe)
+            
+            // Admin only routes
+            admin := protected.Group("")
+            admin.Use(middleware.RequireRole("admin"))
+            {
+                admin.GET("/admin/users", func(c *gin.Context) {
+                    c.JSON(200, gin.H{"message": "Admin users endpoint"})
+                })
+            }
+        }
+    }
+    
+    log.Println("🚀 Server starting on :8080")
+    log.Println("📚 API Documentation:")
+    log.Println("   POST /api/v1/auth/register - Register new user")
+    log.Println("   POST /api/v1/auth/login - Login")
+    log.Println("   POST /api/v1/auth/refresh - Refresh token")
+    log.Println("   GET  /api/v1/auth/me - Get current user (protected)")
+    
+    if err := r.Run(":8080"); err != nil {
+        log.Fatal("Failed to start server:", err)
+    }
+}

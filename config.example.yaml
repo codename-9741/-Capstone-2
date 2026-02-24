@@ -1,0 +1,21 @@
+server:
+  port: 8080
+  host: "0.0.0.0"
+
+database:
+  host: "localhost"
+  port: 5433
+  database: "nightfall"
+  user: "nightfall"
+  password: "nightfall_dev_2025"
+
+redis:
+  host: "localhost"
+  port: 6380
+
+api_keys:
+  shodan: ""
+  censys_id: ""
+  censys_secret: ""
+  virustotal: ""
+  github: ""

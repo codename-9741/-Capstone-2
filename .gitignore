@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build outputs
+frontend/dist/
+frontend/build/
+backend/nightfall-api
+
+# Docker volumes
+postgres-data/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Temp/helper scripts (not part of project)
+read_docx.ps1
+extract_report.ps1
+read_report.ps1
+create_proposal.ps1
+create_dev_report.ps1
+report_part1.ps1
+report_part2.ps1
+report_part3.ps1
+generate_report.ps1
+
+# Logs
+*.log

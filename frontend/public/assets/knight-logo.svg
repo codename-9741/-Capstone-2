@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Knight Helmet -->
+  <path d="M50 10 L65 25 L65 45 L60 50 L60 60 L40 60 L40 50 L35 45 L35 25 Z" 
+        fill="#8B5CF6" stroke="#A78BFA" stroke-width="2"/>
+  <!-- Visor -->
+  <rect x="42" y="35" width="16" height="8" fill="#1F2937"/>
+  <!-- Plume -->
+  <path d="M50 10 L55 5 L52 15 Z" fill="#EC4899"/>
+  <!-- Sword -->
+  <path d="M70 40 L75 35 L72 32 L67 37 L65 35 L70 30 L68 28 L63 33 L70 40 Z" 
+        fill="#9CA3AF" stroke="#6B7280" stroke-width="1"/>
+  <!-- Shield accent -->
+  <circle cx="50" cy="45" r="3" fill="#FBBF24"/>
+</svg>

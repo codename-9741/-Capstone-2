@@ -1,0 +1,323 @@
+# Docker-compose for Filigran XTM
+#
+# This docker-compose provides a minimalist deployment of the Filigran XTM stack.
+# It includes the following components:
+# - xtm-composer: The Filigran XTM Composer, including OpenCTI and OpenAEV.
+# - redis: Redis cache for the stack.
+# - elasticsearch: Elasticsearch database for the stack.
+# - s3: MinIO S3 bucket for the stack.
+# - rabbitmq: RabbitMQ message bus for the stack.
+# - worker: The OpenCTI worker.
+#
+version: "3.8"
+services:
+  # Your existing services
+  postgres:
+    image: postgres:16-alpine
+    container_name: nightfall-postgres
+    environment:
+      POSTGRES_USER: nightfall
+      POSTGRES_PASSWORD: nightfall123
+      POSTGRES_DB: nightfall
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./nightfall-db.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - nightfall-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nightfall"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nightfall-backend
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: nightfall
+      DB_PASSWORD: nightfall123
+      DB_NAME: nightfall
+    ports:
+      - "8088:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - nightfall-network
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: nightfall-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - nightfall-network
+    restart: unless-stopped
+
+  # Filigran XTM services
+  rsa-key-generator:
+    image: alpine/openssl:latest
+    volumes:
+      - rsakeys:/keys
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ ! -f /keys/private_key.pem ]; then
+          openssl genpkey -algorithm RSA -out /keys/private_key.pem -pkeyopt rsa_keygen_bits:4096
+        fi
+        tail -f /dev/null
+    healthcheck:
+      test: ["CMD", "test", "-f", "/keys/private_key.pem"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - nightfall-network
+    restart: on-failure
+
+  redis:
+    image: redis:7.2-alpine
+    restart: always
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - nightfall-network
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.3
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    environment:
+      - discovery.type=single-node
+      - xpack.ml.enabled=false
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms4g -Xmx4g"
+    ports:
+      - "9200:9200"
+    restart: always
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health?wait_for_status=yellow >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 50
+    networks:
+      - nightfall-network
+
+  minio:
+    image: minio/minio:latest
+    volumes:
+      - s3data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: nightfall123
+    command: server /data --console-address ":9001"
+    restart: always
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - nightfall-network
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=nightfall123
+    ports:
+      - "15672:15672"
+    volumes:
+      - amqpdata:/var/lib/rabbitmq
+    restart: always
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 30s
+      retries: 3
+    networks:
+      - nightfall-network
+
+  xtm-composer:
+    image: filigran/xtm-composer:latest
+    platform: linux/amd64
+    environment:
+      - MANAGER__ID=3194165e-2b01-4942-8ed8-595a4c583095
+      - MANAGER__NAME=OpenCTI Connector Manager
+      - MANAGER__CREDENTIALS_KEY_FILEPATH=/keys/private_key.pem
+      - OPENCTI__ENABLE=true
+      - OPENCTI__URL=http://opencti:8080
+      - OPENCTI__TOKEN=6476505b-4674-49c3-8acb-57f6f98998ae
+      - OPENCTI__DAEMON__SELECTOR=docker
+      - OPENCTI__DAEMON__DOCKER__NETWORK_MODE=nightfall-tsukuyomi_nightfall-network
+      - OPENAEV__ENABLE=true
+      - OPENAEV__URL=http://openaev:8080
+      - OPENAEV__TOKEN=8e2dfb71-51a1-4a19-91e0-f80a91865b29
+      - OPENAEV__DAEMON__SELECTOR=docker
+      - OPENAEV__DAEMON__DOCKER__NETWORK_MODE=nightfall-tsukuyomi_nightfall-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - rsakeys:/keys:ro
+    depends_on:
+      rsa-key-generator:
+        condition: service_healthy
+      opencti:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: always
+    networks:
+      - nightfall-network
+
+  opencti:
+    image: opencti/platform:latest
+    environment:
+      - NODE_OPTIONS=--max-old-space-size=8096
+      - APP__PORT=8080
+      - APP__BASE_URL=http://localhost:8081
+      - APP__ADMIN__EMAIL=admin@opencti.io
+      - APP__ADMIN__PASSWORD=shiva
+      - APP__ADMIN__TOKEN=6476505b-4674-49c3-8acb-57f6f98998ae
+      - APP__APP_LOGS__LOGS_LEVEL=error
+      - REDIS__HOSTNAME=redis
+      - REDIS__PORT=6379
+      - ELASTICSEARCH__URL=http://elasticsearch:9200
+      - ELASTICSEARCH__NUMBER_OF_REPLICAS=0
+      - MINIO__ENDPOINT=minio
+      - MINIO__PORT=9000
+      - MINIO__USE_SSL=false
+      - MINIO__ACCESS_KEY=admin
+      - MINIO__SECRET_KEY=nightfall123
+      - RABBITMQ__HOSTNAME=rabbitmq
+      - RABBITMQ__PORT=5672
+      - RABBITMQ__PORT_MANAGEMENT=15672
+      - RABBITMQ__MANAGEMENT_SSL=false
+      - RABBITMQ__USERNAME=guest
+      - RABBITMQ__PASSWORD=nightfall123
+      - POSTGRES__HOSTNAME=postgres
+      - POSTGRES__PORT=5432
+      - POSTGRES__USER=nightfall
+      - POSTGRES__PASSWORD=nightfall123
+      - POSTGRES__DATABASE=opencti
+      - PROVIDERS__LOCAL__STRATEGY=LocalStrategy
+      - APP__HEALTH_ACCESS_KEY=nightfall123
+    ports:
+      - "8081:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://opencti:8080/health?health_access_key=nightfall123"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: always
+    networks:
+      - nightfall-network
+
+  worker:
+    image: opencti/worker:latest
+    environment:
+      - OPENCTI_URL=http://opencti:8080
+      - OPENCTI_TOKEN=6476505b-4674-49c3-8acb-57f6f98998ae
+    depends_on:
+      opencti:
+        condition: service_healthy
+    deploy:
+      mode: replicated
+      replicas: 3
+    restart: always
+    networks:
+      - nightfall-network
+
+  openaev:
+    image: openaev/platform:latest
+    environment:
+      - OPENAEV_BASE-URL=http://localhost:8082
+      - OPENAEV_ADMIN_EMAIL=admin@openaev.io
+      - OPENAEV_ADMIN_PASSWORD=nightfall123
+      - OPENAEV_ADMIN_TOKEN=8e2dfb71-51a1-4a19-91e0-f80a91865b29
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/openaev
+      - SPRING_DATASOURCE_USERNAME=nightfall
+      - SPRING_DATASOURCE_PASSWORD=nightfall123
+      - MINIO_ENDPOINT=minio
+      - MINIO_PORT=9000
+      - MINIO_ACCESSKEY=admin
+      - MINIO_ACCESSSECRET=nightfall123
+      - OPENAEV_RABBITMQ_HOSTNAME=rabbitmq
+      - OPENAEV_RABBITMQ_USER=guest
+      - OPENAEV_RABBITMQ_PASS=nightfall123
+      - ENGINE_URL=http://elasticsearch:9200
+      - OPENAEV_HEALTHCHECK_KEY=nightfall123
+      - OPENAEV_ADMIN_ENCRYPTION_KEY=nightfall-encryption-key-2026
+      - OPENAEV_ADMIN_ENCRYPTION_SALT=nightfall-encryption-salt-2026
+    ports:
+      - "8082:8080"
+    command: ["/bin/sh", "-c", "sleep 10; /usr/bin/tini -- java -Dopenaev.admin.encryption_key=nightfall-encryption-key-2026 -Dopenaev.admin.encryption_salt=nightfall-encryption-salt-2026 -Dminio.access-key=admin -Dminio.access-secret=nightfall123 -jar openaev-api.jar"]
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://openaev:8080/api/health?health_access_key=nightfall123" ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    restart: always
+    networks:
+      - nightfall-network
+
+networks:
+  nightfall-network:
+    driver: bridge
+
+volumes:
+  esdata:
+  postgres-data:
+  s3data:
+  redisdata:
+  amqpdata:
+  rsakeys:
